@@ -263,18 +263,75 @@ Server B가 발행하고 Server C가 consume한다.
 
 ## 9. Data Model
 
+### ERD
+
+서비스별 DB는 독립성을 유지한다. 따라서 Server A DB와 Server C DB 사이에는 물리 FK를 두지 않는다.
+
+```mermaid
+erDiagram
+    COUPON_ISSUE_REQUEST ||--o{ OUTBOX_EVENT : "creates"
+
+    COUPON_ISSUE_REQUEST {
+        bigint id PK
+        char request_id UK
+        bigint promotion_id
+        bigint user_id
+        varchar idempotency_key UK
+        varchar status
+        json payload_json
+        datetime created_at
+        datetime updated_at
+    }
+
+    OUTBOX_EVENT {
+        bigint id PK
+        char event_id UK
+        varchar aggregate_type
+        char aggregate_id
+        varchar event_type
+        json payload_json
+        varchar status
+        int retry_count
+        varchar last_error
+        datetime created_at
+        datetime updated_at
+        datetime published_at
+    }
+
+    COUPON_ISSUE_RESULT {
+        bigint id PK
+        char request_id UK
+        bigint promotion_id
+        bigint user_id
+        varchar result
+        varchar reason
+        datetime processed_at
+        datetime created_at
+    }
+```
+
+관계 해석:
+
+- `coupon_issue_request`와 `outbox_event`는 같은 `server_a_db`에 있다.
+- `outbox_event.aggregate_id`는 `coupon_issue_request.request_id`를 참조하는 논리 키다.
+- `coupon_issue_result`는 `server_c_db`에 있다.
+- `coupon_issue_result.request_id`는 A에서 생성된 요청 ID를 사용하지만 DB FK는 두지 않는다.
+- 서비스 간 정합성은 DB FK가 아니라 event contract, idempotency key, unique constraint로 보장한다.
+
 ### server_a_db.coupon_issue_request
 
+요청 접수 원장이다. Server A가 HTTP 요청을 수락하면 이 테이블에 먼저 기록한다.
+
 ```text
-id
-request_id
-promotion_id
-user_id
-idempotency_key
-status
-payload_json
-created_at
-updated_at
+id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+request_id        CHAR(36) NOT NULL
+promotion_id      BIGINT UNSIGNED NOT NULL
+user_id           BIGINT UNSIGNED NOT NULL
+idempotency_key   VARCHAR(100) NOT NULL
+status            VARCHAR(30) NOT NULL
+payload_json      JSON NOT NULL
+created_at        DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+updated_at        DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
 ```
 
 Constraints:
@@ -283,6 +340,7 @@ Constraints:
 unique(request_id)
 unique(promotion_id, user_id)
 unique(idempotency_key)
+index(status, created_at)
 ```
 
 목적:
@@ -291,25 +349,52 @@ unique(idempotency_key)
 - 동일 idempotency key 재시도 처리
 - 원본 요청 JSON 보관
 
+DDL:
+
+```sql
+CREATE TABLE coupon_issue_request (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    request_id CHAR(36) NOT NULL,
+    promotion_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    idempotency_key VARCHAR(100) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    payload_json JSON NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_coupon_issue_request_request_id (request_id),
+    UNIQUE KEY uq_coupon_issue_request_promotion_user (promotion_id, user_id),
+    UNIQUE KEY uq_coupon_issue_request_idempotency_key (idempotency_key),
+    KEY ix_coupon_issue_request_status_created_at (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+```
+
 ### server_a_db.outbox_event
 
+Server A가 외부 메시지를 발행해야 할 일을 저장하는 outbox 테이블이다.
+
 ```text
-id
-aggregate_type
-aggregate_id
-event_type
-payload_json
-status
-retry_count
-last_error
-created_at
-published_at
+id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+event_id          CHAR(36) NOT NULL
+aggregate_type    VARCHAR(50) NOT NULL
+aggregate_id      CHAR(36) NOT NULL
+event_type        VARCHAR(100) NOT NULL
+payload_json      JSON NOT NULL
+status            VARCHAR(30) NOT NULL
+retry_count       INT UNSIGNED NOT NULL DEFAULT 0
+last_error        VARCHAR(1000) NULL
+created_at        DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+updated_at        DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+published_at      DATETIME(6) NULL
 ```
 
 Index:
 
 ```text
+unique(event_id)
 index(status, created_at)
+index(aggregate_type, aggregate_id)
 ```
 
 목적:
@@ -317,16 +402,42 @@ index(status, created_at)
 - 요청 저장과 메시지 발행 사이의 유실 방지
 - RabbitMQ 발행 실패 시 재시도
 
+DDL:
+
+```sql
+CREATE TABLE outbox_event (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    event_id CHAR(36) NOT NULL,
+    aggregate_type VARCHAR(50) NOT NULL,
+    aggregate_id CHAR(36) NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    payload_json JSON NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    retry_count INT UNSIGNED NOT NULL DEFAULT 0,
+    last_error VARCHAR(1000) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    published_at DATETIME(6) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_outbox_event_event_id (event_id),
+    KEY ix_outbox_event_status_created_at (status, created_at),
+    KEY ix_outbox_event_aggregate (aggregate_type, aggregate_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+```
+
 ### server_c_db.coupon_issue_result
 
+최종 쿠폰 발급 결과 원장이다. Server C가 `issue.processed` 이벤트를 consume한 뒤 저장한다.
+
 ```text
-id
-request_id
-promotion_id
-user_id
-result
-reason
-created_at
+id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+request_id        CHAR(36) NOT NULL
+promotion_id      BIGINT UNSIGNED NOT NULL
+user_id           BIGINT UNSIGNED NOT NULL
+result            VARCHAR(30) NOT NULL
+reason            VARCHAR(255) NULL
+processed_at      DATETIME(6) NOT NULL
+created_at        DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 ```
 
 Constraints:
@@ -334,12 +445,55 @@ Constraints:
 ```text
 unique(request_id)
 unique(promotion_id, user_id)
+index(result, created_at)
 ```
 
 목적:
 
 - 최종 쿠폰 발급 결과 저장
 - Server A 또는 RabbitMQ 재전달로 발생한 중복 메시지 최종 방어
+
+DDL:
+
+```sql
+CREATE TABLE coupon_issue_result (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    request_id CHAR(36) NOT NULL,
+    promotion_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    result VARCHAR(30) NOT NULL,
+    reason VARCHAR(255) NULL,
+    processed_at DATETIME(6) NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_coupon_issue_result_request_id (request_id),
+    UNIQUE KEY uq_coupon_issue_result_promotion_user (promotion_id, user_id),
+    KEY ix_coupon_issue_result_result_created_at (result, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+```
+
+### Flyway Migration Files
+
+각 서버는 자기 DB schema만 관리한다.
+
+```text
+server-a/src/main/resources/db/migration/V1__create_coupon_issue_request_and_outbox.sql
+server-c/src/main/resources/db/migration/V1__create_coupon_issue_result.sql
+```
+
+Docker Compose의 MySQL init script는 database 생성까지만 담당한다.
+
+```sql
+CREATE DATABASE IF NOT EXISTS server_a_db
+    DEFAULT CHARACTER SET utf8mb4
+    DEFAULT COLLATE utf8mb4_0900_ai_ci;
+
+CREATE DATABASE IF NOT EXISTS server_c_db
+    DEFAULT CHARACTER SET utf8mb4
+    DEFAULT COLLATE utf8mb4_0900_ai_ci;
+```
+
+테이블 생성은 Flyway가 담당한다. 이 경계를 두면 로컬 초기화와 애플리케이션 schema versioning 책임이 분리된다.
 
 ## 10. Redis Design
 
@@ -563,17 +717,18 @@ Integration:
 
 1. Gradle multi-module skeleton 생성
 2. Docker Compose로 MySQL, Redis, RabbitMQ 구성
-3. `common` 이벤트 타입 작성
-4. Server A request log와 outbox 구현
-5. Server A HTTP API 구현
-6. Server A outbox relay와 RabbitMQ publish 구현
-7. Server B RabbitMQ consumer 구현
-8. Server B Redis Lua script 구현
-9. Server B `issue.processed` publish 구현
-10. Server C RabbitMQ consumer와 final result 저장 구현
-11. end-to-end smoke test
-12. k6 부하테스트 작성
-13. README와 부하테스트 결과 정리
+3. Flyway migration으로 Server A/C 테이블 생성
+4. `common` 이벤트 타입 작성
+5. Server A request log와 outbox 구현
+6. Server A HTTP API 구현
+7. Server A outbox relay와 RabbitMQ publish 구현
+8. Server B RabbitMQ consumer 구현
+9. Server B Redis Lua script 구현
+10. Server B `issue.processed` publish 구현
+11. Server C RabbitMQ consumer와 final result 저장 구현
+12. end-to-end smoke test
+13. k6 부하테스트 작성
+14. README와 부하테스트 결과 정리
 
 ## 18. README Delivery Content
 
@@ -583,6 +738,7 @@ README에는 다음을 포함한다.
 - 전체 아키텍처 다이어그램
 - monorepo multi-module MSA 설명
 - A/B/C 서버 역할
+- ERD와 테이블 설계
 - 실행 방법
 - API 사용 예시
 - 데이터 흐름
