@@ -6,5 +6,5 @@ import com.promotion.servera.domain.model.OutboxEvent;
 
 public interface OutboxEventLoadPort {
 
-	List<OutboxEvent> findPending(int limit);
+	List<OutboxEvent> findPublishable(int limit);
 }

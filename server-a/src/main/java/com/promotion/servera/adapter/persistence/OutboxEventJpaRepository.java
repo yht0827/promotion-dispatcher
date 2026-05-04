@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 interface OutboxEventJpaRepository extends JpaRepository<OutboxEventEntity, Long> {
 
-	List<OutboxEventEntity> findByStatusOrderByCreatedAtAsc(String status, Pageable pageable);
+	List<OutboxEventEntity> findByStatusInOrderByCreatedAtAsc(List<String> statuses, Pageable pageable);
 
 	Optional<OutboxEventEntity> findByEventId(String eventId);
 }

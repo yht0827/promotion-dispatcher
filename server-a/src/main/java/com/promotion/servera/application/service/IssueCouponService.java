@@ -14,6 +14,8 @@ import com.promotion.servera.application.port.in.IssueCouponResult;
 import com.promotion.servera.application.port.in.IssueCouponUseCase;
 import com.promotion.servera.application.port.out.CouponIssueRequestLoadPort;
 import com.promotion.servera.application.port.out.CouponIssueRequestSavePort;
+import com.promotion.servera.application.port.out.DuplicateIdempotencyKeyException;
+import com.promotion.servera.application.port.out.DuplicatePromotionUserException;
 import com.promotion.servera.application.port.out.OutboxEventSavePort;
 import com.promotion.servera.domain.model.CouponIssueRequest;
 import com.promotion.servera.domain.model.OutboxEvent;
@@ -58,8 +60,16 @@ class IssueCouponService implements IssueCouponUseCase {
 			command.payloadJson(),
 			now
 		);
-		// 요청 접수 이력을 저장한다.
-		requestSavePort.save(request);
+		// 요청 접수 이력을 저장한다. 동시 insert 충돌은 DB unique key를 기준으로 한 번 더 정리한다.
+		try {
+			requestSavePort.save(request);
+		} catch (DuplicateIdempotencyKeyException exception) {
+			return requestLoadPort.findByIdempotencyKey(command.idempotencyKey())
+				.map(this::toResult)
+				.orElseThrow(() -> exception);
+		} catch (DuplicatePromotionUserException exception) {
+			throw new DuplicateCouponIssueRequestException(command.promotionId(), command.userId());
+		}
 
 		// 같은 트랜잭션에서 outbox 이벤트까지 저장해 메시지 유실을 막는다.
 		OutboxEvent outboxEvent = outboxEventFactory.create(request, requestedAt);

@@ -94,10 +94,17 @@ class OutboxEventEntity {
 		this.publishedAt = publishedAt;
 	}
 
-	void markFailed(String failureMessage, LocalDateTime failedAt) {
-		this.status = OutboxEventStatus.FAILED.name();
+	void markFailed(String failureMessage, LocalDateTime failedAt, int maxRetryCount) {
 		this.retryCount++;
+		this.status = failedStatus(maxRetryCount).name();
 		this.lastError = failureMessage;
 		this.updatedAt = failedAt;
+	}
+
+	private OutboxEventStatus failedStatus(int maxRetryCount) {
+		if (retryCount >= maxRetryCount) {
+			return OutboxEventStatus.DEAD;
+		}
+		return OutboxEventStatus.FAILED;
 	}
 }

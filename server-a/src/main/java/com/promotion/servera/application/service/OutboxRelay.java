@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 class OutboxRelay implements PublishOutboxUseCase {
 
 	private static final int PUBLISH_BATCH_SIZE = 100;
+	private static final int MAX_RETRY_COUNT = 3;
 
 	private final OutboxEventLoadPort loadPort;
 	private final OutboxEventStatusUpdatePort statusUpdatePort;
@@ -27,7 +28,7 @@ class OutboxRelay implements PublishOutboxUseCase {
 
 	@Override
 	public void publishPending() {
-		loadPort.findPending(PUBLISH_BATCH_SIZE)
+		loadPort.findPublishable(PUBLISH_BATCH_SIZE)
 			.forEach(this::publish);
 	}
 
@@ -37,7 +38,7 @@ class OutboxRelay implements PublishOutboxUseCase {
 			publishPort.publish(event);
 			statusUpdatePort.markPublished(event.eventId(), now);
 		} catch (RuntimeException exception) {
-			statusUpdatePort.markFailed(event.eventId(), exception.getMessage(), now);
+			statusUpdatePort.markFailed(event.eventId(), exception.getMessage(), now, MAX_RETRY_COUNT);
 		}
 	}
 }

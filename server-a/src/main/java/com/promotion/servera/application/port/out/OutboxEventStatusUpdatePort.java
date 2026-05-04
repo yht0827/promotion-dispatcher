@@ -6,5 +6,5 @@ public interface OutboxEventStatusUpdatePort {
 
 	void markPublished(String eventId, LocalDateTime publishedAt);
 
-	void markFailed(String eventId, String failureMessage, LocalDateTime failedAt);
+	void markFailed(String eventId, String failureMessage, LocalDateTime failedAt, int maxRetryCount);
 }

@@ -38,7 +38,21 @@ class OutboxRelayTest {
 	}
 
 	@Test
-	void publishPendingMarksFailedWhenPublishFails() {
+	void publishPendingPublishesFailedEventAgain() {
+		OutboxEvent event = failedEvent("event-1");
+		FakeOutboxEventLoadPort loadPort = new FakeOutboxEventLoadPort(List.of(event));
+		FakeOutboxEventStatusUpdatePort statusUpdatePort = new FakeOutboxEventStatusUpdatePort();
+		FakeOutboxEventPublishPort publishPort = new FakeOutboxEventPublishPort();
+		OutboxRelay relay = new OutboxRelay(loadPort, statusUpdatePort, publishPort, CLOCK);
+
+		relay.publishPending();
+
+		assertThat(publishPort.publishedEvents).containsExactly(event);
+		assertThat(statusUpdatePort.publishedEventIds).containsExactly("event-1");
+	}
+
+	@Test
+	void publishPendingMarksFailedWithMaxRetryCountWhenPublishFails() {
 		OutboxEvent event = pendingEvent("event-1");
 		FakeOutboxEventLoadPort loadPort = new FakeOutboxEventLoadPort(List.of(event));
 		FakeOutboxEventStatusUpdatePort statusUpdatePort = new FakeOutboxEventStatusUpdatePort();
@@ -53,6 +67,7 @@ class OutboxRelayTest {
 		assertThat(statusUpdatePort.failedEventIds).containsExactly("event-1");
 		assertThat(statusUpdatePort.failureMessages).containsExactly("rabbitmq down");
 		assertThat(statusUpdatePort.failedAt).containsExactly(NOW);
+		assertThat(statusUpdatePort.maxRetryCounts).containsExactly(3);
 	}
 
 	private static OutboxEvent pendingEvent(String eventId) {
@@ -60,6 +75,19 @@ class OutboxRelayTest {
 			eventId,
 			"request-1",
 			"{\"requestId\":\"request-1\"}",
+			NOW
+		);
+	}
+
+	private static OutboxEvent failedEvent(String eventId) {
+		return new OutboxEvent(
+			eventId,
+			"CouponIssueRequest",
+			"request-1",
+			"issue.requested",
+			"{\"requestId\":\"request-1\"}",
+			com.promotion.servera.domain.model.OutboxEventStatus.FAILED,
+			NOW,
 			NOW
 		);
 	}
@@ -73,7 +101,7 @@ class OutboxRelayTest {
 		}
 
 		@Override
-		public List<OutboxEvent> findPending(int limit) {
+		public List<OutboxEvent> findPublishable(int limit) {
 			return pendingEvents;
 		}
 	}
@@ -85,6 +113,7 @@ class OutboxRelayTest {
 		private final List<String> failedEventIds = new ArrayList<>();
 		private final List<String> failureMessages = new ArrayList<>();
 		private final List<LocalDateTime> failedAt = new ArrayList<>();
+		private final List<Integer> maxRetryCounts = new ArrayList<>();
 
 		@Override
 		public void markPublished(String eventId, LocalDateTime publishedAt) {
@@ -93,10 +122,11 @@ class OutboxRelayTest {
 		}
 
 		@Override
-		public void markFailed(String eventId, String failureMessage, LocalDateTime failedAt) {
+		public void markFailed(String eventId, String failureMessage, LocalDateTime failedAt, int maxRetryCount) {
 			this.failedEventIds.add(eventId);
 			this.failureMessages.add(failureMessage);
 			this.failedAt.add(failedAt);
+			this.maxRetryCounts.add(maxRetryCount);
 		}
 	}
 
