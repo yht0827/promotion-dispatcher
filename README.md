@@ -70,7 +70,7 @@ promotion-dispatcher/
 
 ### 3. 장애 대응
 
-- Server A는 Transactional Outbox로 DB 저장 후 RabbitMQ 발행 전 장애 상황을 복구할 수 있습니다.
+- Server A는 Transactional Outbox로 DB 저장 후 RabbitMQ 발행 전 장애에 대한 복구 경로를 둡니다.
 - Server B/C consumer는 manual ack를 사용해 처리 완료 전 장애 시 메시지가 재전달되도록 합니다.
 - B -> C 발행은 broker confirm 이후 기존 메시지를 ack합니다.
 - 실패 메시지는 retry wait queue를 거쳐 재시도되고, 최대 횟수 초과 시 DLQ에 격리됩니다.
@@ -90,7 +90,7 @@ promotion-dispatcher/
 | 쿠폰 발급 요청 | POST | `/api/v1/promotions/{promotionId}/coupons/issue` |
 | Health Check | GET | `/actuator/health` |
 
-요청 예시는 [http/promotion-api.http](http/promotion-api.http)에서 확인할 수 있습니다.
+요청 예시는 [http/promotion-api.http](http/promotion-api.http)에 있습니다.
 
 ```http
 POST http://localhost:8081/api/v1/promotions/1/coupons/issue
@@ -192,7 +192,7 @@ PROMOTION_ID=${PROMOTION_ID} VUS=1000 ITERATIONS=1 MAX_DURATION=2m \
   k6 run k6/coupon-issue-1000-users.js
 ```
 
-상세 초기화 명령과 결과 확인 쿼리는 [docs/05-performance-test.md](docs/05-performance-test.md)에 정리했습니다.
+초기화 명령과 결과 확인 쿼리는 [docs/05-performance-test.md](docs/05-performance-test.md)에 있습니다.
 
 ## 성능 테스트와 인프라 사이징
 
@@ -229,7 +229,7 @@ ceil(1,667 / 80) = 21대
 
 ## 장애 검증 결과
 
-장애 시나리오는 [docs/06-failure-scenarios.md](docs/06-failure-scenarios.md)에 정리했습니다.
+장애 시나리오는 [docs/06-failure-scenarios.md](docs/06-failure-scenarios.md)에 있습니다.
 
 검증한 항목:
 

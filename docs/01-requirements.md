@@ -51,7 +51,7 @@ Client
   -> MySQL server_c_db
 ```
 
-핵심 패턴:
+적용 패턴:
 
 | 패턴 | 설명 |
 |---|---|
@@ -287,7 +287,7 @@ Server A와 Server C는 짧은 transaction과 unique constraint로 중복을 방
 
 검증 전략:
 
-- 로컬 검증용 k6 시나리오로 낮은 부하부터 정상 흐름을 확인한다.
+- 로컬 검증용 k6 시나리오로 낮은 부하부터 정상 흐름을 검증한다.
 - ramping 시나리오로 500~1,000 TPS 근처까지 점진적으로 올린다.
 - 측정값을 기준으로 10,000 TPS 및 100,000명 동시 접속 기준 필요 인스턴스 수를 계산한다.
 
@@ -310,13 +310,13 @@ Server A와 Server C는 짧은 transaction과 unique constraint로 중복을 방
 - Server C MySQL pool: 최대 10, 최소 idle 2, connection timeout 3초
 - Server A는 HTTP 요청 접수와 outbox 저장을 담당하므로 C보다 높은 pool을 둔다.
 - Server C는 consumer concurrency가 제한되어 있으므로 작은 pool로 시작한다.
-- Redis는 현재 기본 Lettuce connection을 사용하며, k6 측정 후 병목이 확인되면 pooling을 검토한다.
+- Redis는 현재 기본 Lettuce connection을 사용한다. k6 측정에서 병목이 보이면 pooling을 검토한다.
 
 ### 보안 고려사항
 
 - HTTPS/TLS는 Spring Boot 앱이 직접 처리하지 않고 Load Balancer, API Gateway, Reverse Proxy 앞단에서 종료한다.
 - 현재 구현은 과제 단순화를 위해 `X-User-Id` 헤더를 신뢰한다.
-- 실서비스에서는 Gateway 또는 인증 필터에서 JWT/session을 검증하고 내부 헤더로 userId를 전달해야 한다.
+- 실서비스에서는 Gateway 또는 인증 필터가 JWT/session을 검증한 뒤 내부 헤더로 userId를 전달해야 한다.
 - Redis, RabbitMQ, MySQL은 public network에 노출하지 않고 private network와 계정 기반 접근 제어를 사용한다.
 - 로그에는 인증 토큰이나 민감정보를 남기지 않는다.
 

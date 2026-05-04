@@ -1,14 +1,14 @@
 # 장애 격리와 Backpressure 검증
 
-> A -> B -> C 비동기 흐름에서 장애가 나도 데이터가 유실되지 않는지 확인한다.
+> A -> B -> C 비동기 흐름에서 장애가 나도 데이터가 유실되지 않는지 검증한다.
 
 ## 목표
 
-- Server B가 중지되어도 Server A는 요청을 접수하고 `202 ACCEPTED`를 반환하는지 확인한다.
-- Server C가 중지되어도 Server B 처리 결과가 RabbitMQ에 남아 재처리 가능한지 확인한다.
-- B/C 재기동 후 backlog가 처리되어 최종 결과가 저장되는지 확인한다.
-- 반복 실패 메시지가 retry wait queue를 거쳐 DLQ로 격리되는지 확인한다.
-- queue backlog, consumer concurrency, rate limit을 backpressure 근거로 정리한다.
+- Server B가 중지되어도 Server A가 요청을 접수하고 `202 ACCEPTED`를 반환하는지 검증한다.
+- Server C가 중지되어도 Server B 처리 결과가 RabbitMQ에 남아 재처리 가능한지 검증한다.
+- B/C 재기동 후 backlog가 처리되고 최종 결과가 저장되는지 검증한다.
+- 반복 실패 메시지가 retry wait queue를 거쳐 DLQ로 격리되는지 검증한다.
+- queue backlog, consumer concurrency, rate limit을 backpressure 근거로 기록한다.
 
 ## 사전 준비
 
@@ -49,7 +49,7 @@ docker exec promotion-redis redis-cli \
   SET promotion:${PROMOTION_ID}:stock ${STOCK}
 ```
 
-큐 backlog를 확인할 때는 RabbitMQ Management API를 사용한다.
+큐 backlog는 RabbitMQ Management API로 확인한다.
 
 ```bash
 curl -u promotion:promotion \
@@ -181,7 +181,7 @@ curl -u promotion:promotion \
 2. RabbitMQ는 B/C 처리량보다 많은 메시지를 queue에 buffer한다.
 3. Server B/C는 `prefetch`, `concurrency`, `max-concurrency`로 한 번에 처리하는 메시지 수를 제한한다.
 
-따라서 B/C가 느리거나 중지된 상황에서도 Server A는 자신의 DB와 outbox 저장이 가능하면 요청을 접수할 수 있다.
+따라서 B/C가 느리거나 중지되어도 Server A는 자신의 DB와 outbox 저장이 가능하면 요청을 접수한다.
 다만 queue backlog가 계속 증가하면 consumer 증설, prefetch 조정, rate limit 강화, DLQ 모니터링이 필요하다.
 
 ## 실측 결과

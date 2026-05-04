@@ -6,7 +6,7 @@
 
 - [DB 분리 기준](#db-분리-기준)
 - [메인 테이블 ERD](#메인-테이블-erd)
-- [핵심 관계 설명](#핵심-관계-설명)
+- [관계 설명](#관계-설명)
 - [테이블 상세](#테이블-상세)
   - [coupon_issue_request](#coupon_issue_request)
   - [outbox_event](#outbox_event)
@@ -85,7 +85,7 @@ erDiagram
 
 ---
 
-## 핵심 관계 설명
+## 관계 설명
 
 - `coupon_issue_request`는 Server A의 요청 접수 원장이다.
 - `outbox_event`는 Server A의 메시지 발행 대기열이다.
@@ -204,7 +204,7 @@ Rate limit script:
 ### Redis Hot Key
 
 선착순 프로모션은 특정 `promotionId`로 요청이 집중된다.
-따라서 `promotion:{promotionId}:stock`, `promotion:{promotionId}:issued-users`는 hot key가 될 수 있다.
+따라서 `promotion:{promotionId}:stock`, `promotion:{promotionId}:issued-users`는 hot key가 된다.
 현재 구현은 Lua script로 정합성을 보장하지만 단일 key 처리량 한계는 남는다.
 
 현재 데이터 모델은 단일 stock key와 단일 issued-users set을 사용한다.

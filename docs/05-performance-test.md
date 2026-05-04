@@ -1,13 +1,13 @@
 # 성능 테스트
 
-> k6로 Server A 요청 접수 성능과 A/B/C 비동기 처리 흐름을 확인한다.
+> k6로 Server A 요청 접수 성능과 A/B/C 비동기 처리 흐름을 검증한다.
 
 ## 목표
 
-- 1,000명 동시 쿠폰 발급 요청 시 Server A가 빠르게 `202 ACCEPTED`를 반환하는지 확인한다.
+- 1,000명 동시 쿠폰 발급 요청에서 Server A가 `202 ACCEPTED`를 빠르게 반환하는지 검증한다.
 - 재고보다 많은 요청이 들어와도 Server B Redis Lua script가 `SUCCESS`, `SOLD_OUT` 결과를 중복 없이 만든다.
-- Server C 최종 결과 저장 건수와 RabbitMQ backlog를 확인한다.
-- p95, p99, error rate를 측정해 인프라 사이징 근거로 사용한다.
+- Server C 최종 결과 저장 건수와 RabbitMQ backlog를 검증한다.
+- p95, p99, error rate를 측정해 인프라 사이징 근거로 쓴다.
 
 ## 사전 준비
 
@@ -57,7 +57,7 @@ docker exec promotion-rabbitmq rabbitmqctl purge_queue issue.processed.queue
 
 ## Smoke
 
-낮은 부하로 스크립트와 환경을 먼저 확인한다.
+낮은 부하로 스크립트와 환경을 먼저 검증한다.
 
 ```bash
 PROMOTION_ID=${PROMOTION_ID} VUS=10 ITERATIONS=1 \
@@ -136,10 +136,10 @@ curl -u promotion:promotion \
 - Server B/C는 비동기로 처리되므로 k6 종료 직후에는 RabbitMQ backlog가 잠시 남을 수 있다.
 - `STOCK=100`, `VUS=1000`이면 최종적으로 `SUCCESS`는 최대 100건이어야 한다.
 - 나머지는 `SOLD_OUT` 또는 이미 처리된 사용자 기준 `DUPLICATE`가 될 수 있다.
-- `429`가 많으면 rate limit이 테스트 목적보다 강하게 작동한 것이므로 `BASE_USER_ID`, `VUS`, `ITERATIONS` 값을 확인한다.
+- `429`가 많으면 rate limit이 테스트 목적보다 강하게 작동한 것이다. `BASE_USER_ID`, `VUS`, `ITERATIONS` 값을 점검한다.
 - Redis hot key 병목은 `promotion:{promotionId}:stock`, `promotion:{promotionId}:issued-users`에 집중된다.
-- 현재 구현은 측정 전 stock bucket/shard를 넣지 않고, 단일 Lua script 기준 한계를 먼저 확인한다.
-- 병목이 확인되면 stock bucket/shard, Redis Cluster, 사전 분산 재고를 확장안으로 검토한다.
+- 현재 구현은 측정 전 stock bucket/shard를 넣지 않는다. 단일 Lua script 기준 한계를 먼저 측정한다.
+- 병목이 보이면 stock bucket/shard, Redis Cluster, 사전 분산 재고를 확장안으로 검토한다.
 
 ## 실측 결과 - 로컬 개발 머신 baseline
 
@@ -206,7 +206,7 @@ VU   요청 수  HTTP 202  최종 결과    비고
 Server A는 요청마다 MySQL request log와 outbox를 같은 transaction에 저장하므로, 순간 1,000 VU에서는 DB insert와 connection pool 경쟁이 p95 지연으로 나타난다.
 
 현재 구조에서 데이터 유실 방어는 정상 동작했다.
-다만 지연 시간 목표를 만족하려면 다음 개선을 검토한다.
+다만 지연 시간 목표를 만족하려면 다음 항목을 검토한다.
 
 - Server A 인스턴스 수평 확장
 - Hikari pool, Tomcat thread, DB connection 상한 재조정
@@ -307,7 +307,7 @@ total=20, active=20, idle=0, waiting=180
 현재 Server A는 요청 접수 시 MySQL request log와 outbox를 같은 transaction에 저장한다.
 이 설계는 유실 방어에는 유리하지만, 단일 노드 자원이 작을 때 DB connection pool이 먼저 포화된다.
 
-안정성을 높이려면 다음 보강을 검토한다.
+안정성을 높이려면 다음 보강이 필요하다.
 
 - Server A global concurrency limit 추가
 - DB connection을 얻기 전에 초과 요청을 `429` 또는 `503`으로 제어

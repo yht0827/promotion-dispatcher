@@ -48,7 +48,7 @@ sequenceDiagram
     end
 ```
 
-핵심 포인트
+요점
 
 - Server A는 최종 발급 결과를 기다리지 않는다.
 - request log와 outbox event는 같은 transaction에 저장한다.
@@ -83,7 +83,7 @@ sequenceDiagram
     end
 ```
 
-핵심 포인트
+요점
 
 - DB commit 이후 RabbitMQ 발행 전에 Server A가 죽어도 outbox가 남는다.
 - relay는 `PENDING`, 재시도 가능한 `FAILED` event를 재조회해 발행을 재시도한다.
@@ -130,7 +130,7 @@ sequenceDiagram
     L->>MQ1: ack
 ```
 
-핵심 포인트
+요점
 
 - Redis Lua script가 재고 확인, 중복 확인, 차감을 원자적으로 처리한다.
 - `issue:{requestId}:result`가 있어 재전달 시 결과가 바뀌지 않는다.
@@ -168,7 +168,7 @@ sequenceDiagram
     end
 ```
 
-핵심 포인트
+요점
 
 - Server C는 최종 정합성 방어선이다.
 - `request_id` unique constraint는 동일 이벤트 재처리를 막는다.
@@ -215,7 +215,7 @@ sequenceDiagram
     end
 ```
 
-핵심 포인트
+요점
 
 - 같은 idempotency key의 재요청은 새 이벤트를 만들지 않는다.
 - 같은 사용자와 같은 프로모션 조합은 한 번만 접수한다.
@@ -251,7 +251,7 @@ sequenceDiagram
     end
 ```
 
-핵심 포인트
+요점
 
 - Server A 장애는 outbox relay로 복구한다.
 - Server B/C 장애는 RabbitMQ ack와 재전달로 복구한다.
@@ -283,7 +283,7 @@ sequenceDiagram
     end
 ```
 
-핵심 포인트
+요점
 
 - Server A는 사용자별 rate limit으로 명백히 과도한 요청을 초기에 차단한다.
 - RabbitMQ queue는 B/C 처리량보다 많은 요청을 buffer한다.
