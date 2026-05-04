@@ -1,7 +1,7 @@
 package com.promotion.serverb.adapter.messaging;
 
 import org.springframework.amqp.core.MessageProperties;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.core.RabbitOperations;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -16,20 +16,25 @@ import lombok.RequiredArgsConstructor;
 class RabbitIssueProcessedPublisher implements IssueProcessedPublisherPort {
 
 	private static final String EVENT_TYPE = "issue.processed";
+	private static final long CONFIRM_TIMEOUT_MILLIS = 5000;
 
-	private final RabbitTemplate rabbitTemplate;
+	private final RabbitOperations rabbitOperations;
 	private final ObjectMapper objectMapper;
 	private final IssueProcessedRabbitProperties properties;
 
 	@Override
 	public void publish(IssueProcessedEvent event) {
 		String payload = toJson(event);
-		rabbitTemplate.convertAndSend(properties.exchange(), properties.routingKey(), payload, message -> {
-			MessageProperties properties = message.getMessageProperties();
-			properties.setMessageId(event.requestId());
-			properties.setType(EVENT_TYPE);
-			properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
-			return message;
+		rabbitOperations.invoke(operations -> {
+			operations.convertAndSend(properties.exchange(), properties.routingKey(), payload, message -> {
+				MessageProperties properties = message.getMessageProperties();
+				properties.setMessageId(event.requestId());
+				properties.setType(EVENT_TYPE);
+				properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+				return message;
+			});
+			operations.waitForConfirmsOrDie(CONFIRM_TIMEOUT_MILLIS);
+			return null;
 		});
 	}
 

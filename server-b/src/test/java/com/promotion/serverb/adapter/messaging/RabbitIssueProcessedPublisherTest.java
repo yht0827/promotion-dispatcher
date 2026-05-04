@@ -13,7 +13,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.core.MessageProperties;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.core.RabbitOperations;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,8 +25,8 @@ import com.promotion.common.type.IssueResult;
 class RabbitIssueProcessedPublisherTest {
 
 	@Test
-	void publishSendsIssueProcessedEventJsonToRabbitMq() throws Exception {
-		RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
+	void publishSendsIssueProcessedEventJsonAfterRabbitMqConfirm() throws Exception {
+		RabbitOperations rabbitOperations = mock(RabbitOperations.class);
 		ObjectMapper objectMapper = new ObjectMapper()
 			.registerModule(new JavaTimeModule())
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -35,7 +35,7 @@ class RabbitIssueProcessedPublisherTest {
 			"issue.processed"
 		);
 		RabbitIssueProcessedPublisher publisher = new RabbitIssueProcessedPublisher(
-			rabbitTemplate,
+			rabbitOperations,
 			objectMapper,
 			properties
 		);
@@ -50,14 +50,22 @@ class RabbitIssueProcessedPublisherTest {
 
 		publisher.publish(event);
 
+		ArgumentCaptor<RabbitOperations.OperationsCallback<Void>> callbackCaptor = operationsCallbackCaptor();
+		verify(rabbitOperations).invoke(callbackCaptor.capture());
+
+		RabbitOperations operations = mock(RabbitOperations.class);
+		callbackCaptor.getValue().doInRabbit(operations);
+
 		ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<MessagePostProcessor> processorCaptor = ArgumentCaptor.forClass(MessagePostProcessor.class);
-		verify(rabbitTemplate).convertAndSend(
+		verify(operations).convertAndSend(
 			eq("issue.processed.exchange"),
 			eq("issue.processed"),
 			payloadCaptor.capture(),
 			processorCaptor.capture()
 		);
+		verify(operations).waitForConfirmsOrDie(5000);
+
 		JsonNode payload = objectMapper.readTree(payloadCaptor.getValue());
 		assertThat(payload.get("requestId").asText()).isEqualTo("request-1");
 		assertThat(payload.get("promotionId").asLong()).isEqualTo(1L);
@@ -74,5 +82,10 @@ class RabbitIssueProcessedPublisherTest {
 		assertThat(messageProperties.getMessageId()).isEqualTo("request-1");
 		assertThat(messageProperties.getType()).isEqualTo("issue.processed");
 		assertThat(messageProperties.getContentType()).isEqualTo(MessageProperties.CONTENT_TYPE_JSON);
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static ArgumentCaptor<RabbitOperations.OperationsCallback<Void>> operationsCallbackCaptor() {
+		return ArgumentCaptor.forClass((Class)RabbitOperations.OperationsCallback.class);
 	}
 }

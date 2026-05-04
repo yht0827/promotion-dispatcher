@@ -9,6 +9,9 @@ spring:
     listener:
       simple:
         acknowledge-mode: manual
+        prefetch: 50
+        concurrency: 2
+        max-concurrency: 8
   datasource:
     url: jdbc:mysql://localhost:3306/server_c_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root

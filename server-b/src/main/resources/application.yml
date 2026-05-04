@@ -6,9 +6,13 @@ spring:
     port: 5672
     username: promotion
     password: promotion
+    publisher-confirm-type: simple
     listener:
       simple:
         acknowledge-mode: manual
+        prefetch: 50
+        concurrency: 2
+        max-concurrency: 8
   data:
     redis:
       host: localhost
@@ -40,3 +44,7 @@ promotion:
     issue-processed:
       exchange: issue.processed.exchange
       routing-key: issue.processed
+  redis:
+    coupon-stock:
+      result-ttl-seconds: 86400
+      promotion-ttl-seconds: 604800

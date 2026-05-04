@@ -1,7 +1,7 @@
 package com.promotion.servera.adapter.messaging;
 
 import org.springframework.amqp.core.MessageProperties;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.core.RabbitOperations;
 import org.springframework.stereotype.Component;
 
 import com.promotion.servera.application.port.out.OutboxEventPublishPort;
@@ -13,17 +13,23 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 class RabbitIssueRequestedPublisher implements OutboxEventPublishPort {
 
-	private final RabbitTemplate rabbitTemplate;
+	private static final long CONFIRM_TIMEOUT_MILLIS = 5000;
+
+	private final RabbitOperations rabbitOperations;
 	private final IssueRequestedRabbitProperties properties;
 
 	@Override
 	public void publish(OutboxEvent event) {
-		rabbitTemplate.convertAndSend(properties.exchange(), properties.routingKey(), event.payloadJson(), message -> {
-			MessageProperties properties = message.getMessageProperties();
-			properties.setMessageId(event.eventId());
-			properties.setType(event.eventType());
-			properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
-			return message;
+		rabbitOperations.invoke(operations -> {
+			operations.convertAndSend(properties.exchange(), properties.routingKey(), event.payloadJson(), message -> {
+				MessageProperties properties = message.getMessageProperties();
+				properties.setMessageId(event.eventId());
+				properties.setType(event.eventType());
+				properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+				return message;
+			});
+			operations.waitForConfirmsOrDie(CONFIRM_TIMEOUT_MILLIS);
+			return null;
 		});
 	}
 }

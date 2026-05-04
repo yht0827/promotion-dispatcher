@@ -32,7 +32,7 @@ class RedisCouponStockAdapterTest {
 		redisTemplate = new StringRedisTemplate(connectionFactory);
 		redisTemplate.afterPropertiesSet();
 		redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
-		adapter = new RedisCouponStockAdapter(redisTemplate);
+		adapter = new RedisCouponStockAdapter(redisTemplate, properties());
 	}
 
 	@AfterEach
@@ -52,6 +52,9 @@ class RedisCouponStockAdapterTest {
 		assertThat(redisTemplate.opsForValue().get("promotion:1:stock")).isEqualTo("0");
 		assertThat(redisTemplate.opsForSet().isMember("promotion:1:issued-users", "100")).isTrue();
 		assertThat(redisTemplate.opsForValue().get("issue:request-1:result")).isEqualTo("SUCCESS");
+		assertThat(ttl("issue:request-1:result")).isPositive();
+		assertThat(ttl("promotion:1:issued-users")).isPositive();
+		assertThat(ttl("promotion:1:stock")).isPositive();
 	}
 
 	@Test
@@ -64,6 +67,9 @@ class RedisCouponStockAdapterTest {
 		assertThat(result).isEqualTo(IssueResult.DUPLICATE);
 		assertThat(redisTemplate.opsForValue().get("promotion:1:stock")).isEqualTo("1");
 		assertThat(redisTemplate.opsForValue().get("issue:request-2:result")).isEqualTo("DUPLICATE");
+		assertThat(ttl("issue:request-2:result")).isPositive();
+		assertThat(ttl("promotion:1:issued-users")).isPositive();
+		assertThat(ttl("promotion:1:stock")).isPositive();
 	}
 
 	@Test
@@ -75,5 +81,15 @@ class RedisCouponStockAdapterTest {
 		assertThat(result).isEqualTo(IssueResult.SOLD_OUT);
 		assertThat(redisTemplate.opsForValue().get("promotion:1:stock")).isEqualTo("0");
 		assertThat(redisTemplate.opsForValue().get("issue:request-1:result")).isEqualTo("SOLD_OUT");
+		assertThat(ttl("issue:request-1:result")).isPositive();
+		assertThat(ttl("promotion:1:stock")).isPositive();
+	}
+
+	private Long ttl(String key) {
+		return redisTemplate.getExpire(key);
+	}
+
+	private static CouponStockRedisProperties properties() {
+		return new CouponStockRedisProperties(86400, 604800);
 	}
 }

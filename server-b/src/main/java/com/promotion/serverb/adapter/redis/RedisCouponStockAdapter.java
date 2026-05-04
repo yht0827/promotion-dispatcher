@@ -20,13 +20,16 @@ class RedisCouponStockAdapter implements CouponStockPort {
 	private static final DefaultRedisScript<String> ISSUE_SCRIPT = issueScript();
 
 	private final StringRedisTemplate redisTemplate;
+	private final CouponStockRedisProperties properties;
 
 	@Override
 	public IssueResult issue(String requestId, Long promotionId, Long userId) {
 		String result = redisTemplate.execute(
 			ISSUE_SCRIPT,
 			List.of(resultKey(requestId), issuedUsersKey(promotionId), stockKey(promotionId)),
-			userId.toString()
+			userId.toString(),
+			properties.resultTtlSeconds().toString(),
+			properties.promotionTtlSeconds().toString()
 		);
 		return toIssueResult(result);
 	}

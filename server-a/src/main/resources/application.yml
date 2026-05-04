@@ -17,6 +17,7 @@ spring:
     port: 5672
     username: promotion
     password: promotion
+    publisher-confirm-type: simple
 
 server:
   port: 8081
