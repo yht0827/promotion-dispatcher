@@ -26,6 +26,12 @@ class CouponIssuePersistenceAdapter implements CouponIssueRequestLoadPort, Coupo
 	}
 
 	@Override
+	public Optional<CouponIssueRequest> findByPromotionIdAndUserId(Long promotionId, Long userId) {
+		return requestRepository.findByPromotionIdAndUserId(promotionId, userId)
+			.map(CouponIssueRequestEntity::toDomain);
+	}
+
+	@Override
 	public void save(CouponIssueRequest request) {
 		requestRepository.save(CouponIssueRequestEntity.from(request));
 	}

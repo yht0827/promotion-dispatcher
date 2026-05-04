@@ -138,6 +138,39 @@ class CouponIssueControllerTest {
 		assertThat(outboxCount).isEqualTo(1);
 	}
 
+	@Test
+	void issueCouponRejectsDuplicatePromotionAndUserWithDifferentIdempotencyKey() throws Exception {
+		long userId = System.nanoTime();
+
+		mockMvc.perform(post("/api/v1/promotions/{promotionId}/coupons/issue", 1L)
+				.header("Idempotency-Key", "idem-first-" + userId)
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestBody()))
+			.andExpect(status().isAccepted());
+
+		mockMvc.perform(post("/api/v1/promotions/{promotionId}/coupons/issue", 1L)
+				.header("Idempotency-Key", "idem-second-" + userId)
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestBody()))
+			.andExpect(status().isConflict());
+
+		Integer requestCount = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM coupon_issue_request WHERE promotion_id = ? AND user_id = ?",
+			Integer.class,
+			1L,
+			userId
+		);
+		Integer outboxCount = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM outbox_event",
+			Integer.class
+		);
+
+		assertThat(requestCount).isEqualTo(1);
+		assertThat(outboxCount).isEqualTo(1);
+	}
+
 	private String requestBody() {
 		return """
 			{

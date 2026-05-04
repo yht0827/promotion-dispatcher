@@ -7,4 +7,6 @@ import com.promotion.servera.domain.model.CouponIssueRequest;
 public interface CouponIssueRequestLoadPort {
 
 	Optional<CouponIssueRequest> findByIdempotencyKey(String idempotencyKey);
+
+	Optional<CouponIssueRequest> findByPromotionIdAndUserId(Long promotionId, Long userId);
 }

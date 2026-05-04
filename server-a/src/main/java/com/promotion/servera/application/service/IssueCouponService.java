@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.promotion.servera.application.port.in.DuplicateCouponIssueRequestException;
 import com.promotion.servera.application.port.in.IssueCouponCommand;
 import com.promotion.servera.application.port.in.IssueCouponResult;
 import com.promotion.servera.application.port.in.IssueCouponUseCase;
@@ -38,6 +39,11 @@ class IssueCouponService implements IssueCouponUseCase {
 	}
 
 	private IssueCouponResult issueNewRequest(IssueCouponCommand command) {
+		requestLoadPort.findByPromotionIdAndUserId(command.promotionId(), command.userId())
+			.ifPresent(existing -> {
+				throw new DuplicateCouponIssueRequestException(command.promotionId(), command.userId());
+			});
+
 		String requestId = UUID.randomUUID().toString();
 		LocalDateTime now = LocalDateTime.now(clock);
 		Instant requestedAt = Instant.now(clock);
