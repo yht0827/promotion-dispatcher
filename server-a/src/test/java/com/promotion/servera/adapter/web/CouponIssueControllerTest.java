@@ -96,6 +96,48 @@ class CouponIssueControllerTest {
 			.andExpect(status().isBadRequest());
 	}
 
+	@Test
+	void issueCouponReturnsExistingRequestWithoutCreatingOutboxWhenIdempotencyKeyIsRepeated() throws Exception {
+		String idempotencyKey = "idem-" + System.nanoTime();
+		long userId = System.nanoTime();
+
+		mockMvc.perform(post("/api/v1/promotions/{promotionId}/coupons/issue", 1L)
+				.header("Idempotency-Key", idempotencyKey)
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestBody()))
+			.andExpect(status().isAccepted());
+
+		String requestId = jdbcTemplate.queryForObject(
+			"SELECT request_id FROM coupon_issue_request WHERE idempotency_key = ?",
+			String.class,
+			idempotencyKey
+		);
+
+		mockMvc.perform(post("/api/v1/promotions/{promotionId}/coupons/issue", 1L)
+				.header("Idempotency-Key", idempotencyKey)
+				.header("X-User-Id", userId)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestBody()))
+			.andExpect(status().isAccepted())
+			.andExpect(jsonPath("$.requestId").value(requestId))
+			.andExpect(jsonPath("$.status").value("ACCEPTED"));
+
+		Integer requestCount = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM coupon_issue_request WHERE idempotency_key = ?",
+			Integer.class,
+			idempotencyKey
+		);
+		Integer outboxCount = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM outbox_event WHERE aggregate_id = ?",
+			Integer.class,
+			requestId
+		);
+
+		assertThat(requestCount).isEqualTo(1);
+		assertThat(outboxCount).isEqualTo(1);
+	}
+
 	private String requestBody() {
 		return """
 			{

@@ -14,6 +14,7 @@ import lombok.Builder;
 import lombok.NoArgsConstructor;
 
 import com.promotion.servera.domain.model.CouponIssueRequest;
+import com.promotion.servera.domain.model.CouponIssueRequestStatus;
 
 @Entity
 @Table(name = "coupon_issue_request")
@@ -62,5 +63,18 @@ class CouponIssueRequestEntity {
 			.createdAt(request.createdAt())
 			.updatedAt(request.updatedAt())
 			.build();
+	}
+
+	CouponIssueRequest toDomain() {
+		return new CouponIssueRequest(
+			requestId,
+			promotionId,
+			userId,
+			idempotencyKey,
+			CouponIssueRequestStatus.valueOf(status),
+			payloadJson,
+			createdAt,
+			updatedAt
+		);
 	}
 }
