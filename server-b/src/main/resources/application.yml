@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: server-b
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
