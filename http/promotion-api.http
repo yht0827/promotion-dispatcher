@@ -1,0 +1,83 @@
+@serverAUrl = http://localhost:8081
+@promotionId = 1
+@userId = 1001
+@idempotencyKey = idem-promotion-1-user-1001
+
+### Server A health
+GET {{serverAUrl}}/actuator/health
+
+### Issue coupon - accepted
+POST {{serverAUrl}}/api/v1/promotions/{{promotionId}}/coupons/issue
+Content-Type: application/json
+X-User-Id: {{userId}}
+Idempotency-Key: {{idempotencyKey}}
+
+{
+  "requestField1": "value-1",
+  "requestField2": "value-2",
+  "requestField3": "value-3",
+  "requestField4": "value-4",
+  "requestField5": "value-5",
+  "requestField6": "value-6",
+  "requestField7": "value-7",
+  "requestField8": "value-8",
+  "requestField9": "value-9",
+  "requestField10": "value-10"
+}
+
+### Issue coupon - same Idempotency-Key returns the same accepted request
+POST {{serverAUrl}}/api/v1/promotions/{{promotionId}}/coupons/issue
+Content-Type: application/json
+X-User-Id: {{userId}}
+Idempotency-Key: {{idempotencyKey}}
+
+{
+  "requestField1": "value-1",
+  "requestField2": "value-2",
+  "requestField3": "value-3",
+  "requestField4": "value-4",
+  "requestField5": "value-5",
+  "requestField6": "value-6",
+  "requestField7": "value-7",
+  "requestField8": "value-8",
+  "requestField9": "value-9",
+  "requestField10": "value-10"
+}
+
+### Issue coupon - same promotion/user with a different Idempotency-Key returns 409
+POST {{serverAUrl}}/api/v1/promotions/{{promotionId}}/coupons/issue
+Content-Type: application/json
+X-User-Id: {{userId}}
+Idempotency-Key: idem-promotion-1-user-1001-duplicate
+
+{
+  "requestField1": "value-1",
+  "requestField2": "value-2",
+  "requestField3": "value-3",
+  "requestField4": "value-4",
+  "requestField5": "value-5",
+  "requestField6": "value-6",
+  "requestField7": "value-7",
+  "requestField8": "value-8",
+  "requestField9": "value-9",
+  "requestField10": "value-10"
+}
+
+### E2E sample - another user
+POST {{serverAUrl}}/api/v1/promotions/{{promotionId}}/coupons/issue
+Content-Type: application/json
+X-User-Id: 1002
+Idempotency-Key: idem-promotion-1-user-1002
+
+{
+  "requestField1": "value-1",
+  "requestField2": "value-2",
+  "requestField3": "value-3",
+  "requestField4": "value-4",
+  "requestField5": "value-5",
+  "requestField6": "value-6",
+  "requestField7": "value-7",
+  "requestField8": "value-8",
+  "requestField9": "value-9",
+  "requestField10": "value-10"
+}
