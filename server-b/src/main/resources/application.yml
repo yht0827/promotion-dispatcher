@@ -1,6 +1,11 @@
 spring:
   application:
     name: server-b
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: promotion
+    password: promotion
 
 server:
   port: 8082
@@ -10,3 +15,16 @@ management:
     web:
       exposure:
         include: health
+
+promotion:
+  rabbitmq:
+    issue-requested:
+      exchange: issue.requested.exchange
+      queue: issue.requested.queue
+      routing-key: issue.requested
+      dead-letter-exchange: issue.requested.dlx
+      dead-letter-queue: issue.requested.dlq
+      dead-letter-routing-key: issue.requested.dlq
+    issue-processed:
+      exchange: issue.processed.exchange
+      routing-key: issue.processed

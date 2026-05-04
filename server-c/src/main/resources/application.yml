@@ -1,6 +1,11 @@
 spring:
   application:
     name: server-c
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: promotion
+    password: promotion
   datasource:
     url: jdbc:mysql://localhost:3306/server_c_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
@@ -21,3 +26,13 @@ management:
     web:
       exposure:
         include: health
+
+promotion:
+  rabbitmq:
+    issue-processed:
+      exchange: issue.processed.exchange
+      queue: issue.processed.queue
+      routing-key: issue.processed
+      dead-letter-exchange: issue.processed.dlx
+      dead-letter-queue: issue.processed.dlq
+      dead-letter-routing-key: issue.processed.dlq
