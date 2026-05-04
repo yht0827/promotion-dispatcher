@@ -13,11 +13,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.promotion.servera.application.port.in.DuplicateCouponIssueRequestException;
 import com.promotion.servera.application.port.in.IssueCouponCommand;
 import com.promotion.servera.application.port.in.IssueCouponResult;
+import com.promotion.servera.application.port.in.RateLimitExceededException;
 import com.promotion.servera.application.port.out.CouponIssueRequestLoadPort;
 import com.promotion.servera.application.port.out.CouponIssueRequestSavePort;
 import com.promotion.servera.application.port.out.DuplicateIdempotencyKeyException;
 import com.promotion.servera.application.port.out.DuplicatePromotionUserException;
 import com.promotion.servera.application.port.out.OutboxEventSavePort;
+import com.promotion.servera.application.port.out.RateLimitPort;
 import com.promotion.servera.domain.model.CouponIssueRequest;
 import com.promotion.servera.domain.model.OutboxEvent;
 
@@ -31,6 +33,7 @@ class IssueCouponServiceTest {
 		FakeCouponIssueRequestSavePort requestSavePort = new FakeCouponIssueRequestSavePort();
 		FakeOutboxEventSavePort outboxEventSavePort = new FakeOutboxEventSavePort();
 		IssueCouponService service = new IssueCouponService(
+			new FakeRateLimitPort(),
 			loadPort,
 			requestSavePort,
 			outboxEventSavePort,
@@ -51,6 +54,7 @@ class IssueCouponServiceTest {
 		FakeCouponIssueRequestSavePort requestSavePort = new FakeCouponIssueRequestSavePort();
 		FakeOutboxEventSavePort outboxEventSavePort = new FakeOutboxEventSavePort();
 		IssueCouponService service = new IssueCouponService(
+			new FakeRateLimitPort(),
 			loadPort,
 			requestSavePort,
 			outboxEventSavePort,
@@ -60,6 +64,27 @@ class IssueCouponServiceTest {
 
 		assertThatThrownBy(() -> service.issue(command("idem-1")))
 			.isInstanceOf(DuplicateCouponIssueRequestException.class);
+		assertThat(outboxEventSavePort.savedEvents).isEmpty();
+	}
+
+	@Test
+	void issueRejectsRequestWhenRateLimitExceeded() {
+		FakeRateLimitPort rateLimitPort = new FakeRateLimitPort();
+		FakeCouponIssueRequestLoadPort loadPort = new FakeCouponIssueRequestLoadPort();
+		FakeCouponIssueRequestSavePort requestSavePort = new FakeCouponIssueRequestSavePort();
+		FakeOutboxEventSavePort outboxEventSavePort = new FakeOutboxEventSavePort();
+		IssueCouponService service = new IssueCouponService(
+			rateLimitPort,
+			loadPort,
+			requestSavePort,
+			outboxEventSavePort,
+			new IssueRequestedOutboxEventFactory(new ObjectMapper())
+		);
+		rateLimitPort.allowed = false;
+
+		assertThatThrownBy(() -> service.issue(command("idem-1")))
+			.isInstanceOf(RateLimitExceededException.class);
+		assertThat(requestSavePort.savedRequests).isEmpty();
 		assertThat(outboxEventSavePort.savedEvents).isEmpty();
 	}
 
@@ -99,8 +124,19 @@ class IssueCouponServiceTest {
 		}
 	}
 
+	private static class FakeRateLimitPort implements RateLimitPort {
+
+		private boolean allowed = true;
+
+		@Override
+		public boolean isAllowed(Long userId) {
+			return allowed;
+		}
+	}
+
 	private static class FakeCouponIssueRequestSavePort implements CouponIssueRequestSavePort {
 
+		private final List<CouponIssueRequest> savedRequests = new ArrayList<>();
 		private RuntimeException failure;
 
 		@Override
@@ -108,6 +144,7 @@ class IssueCouponServiceTest {
 			if (failure != null) {
 				throw failure;
 			}
+			savedRequests.add(request);
 		}
 	}
 

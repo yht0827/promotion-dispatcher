@@ -12,11 +12,13 @@ import com.promotion.servera.application.port.in.DuplicateCouponIssueRequestExce
 import com.promotion.servera.application.port.in.IssueCouponCommand;
 import com.promotion.servera.application.port.in.IssueCouponResult;
 import com.promotion.servera.application.port.in.IssueCouponUseCase;
+import com.promotion.servera.application.port.in.RateLimitExceededException;
 import com.promotion.servera.application.port.out.CouponIssueRequestLoadPort;
 import com.promotion.servera.application.port.out.CouponIssueRequestSavePort;
 import com.promotion.servera.application.port.out.DuplicateIdempotencyKeyException;
 import com.promotion.servera.application.port.out.DuplicatePromotionUserException;
 import com.promotion.servera.application.port.out.OutboxEventSavePort;
+import com.promotion.servera.application.port.out.RateLimitPort;
 import com.promotion.servera.domain.model.CouponIssueRequest;
 import com.promotion.servera.domain.model.OutboxEvent;
 
@@ -26,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 class IssueCouponService implements IssueCouponUseCase {
 
+	private final RateLimitPort rateLimitPort;
 	private final CouponIssueRequestLoadPort requestLoadPort;
 	private final CouponIssueRequestSavePort requestSavePort;
 	private final OutboxEventSavePort outboxEventSavePort;
@@ -35,6 +38,10 @@ class IssueCouponService implements IssueCouponUseCase {
 	@Override
 	@Transactional
 	public IssueCouponResult issue(IssueCouponCommand command) {
+		if (!rateLimitPort.isAllowed(command.userId())) {
+			throw new RateLimitExceededException(command.userId());
+		}
+
 		// 같은 Idempotency-Key 요청이면 기존 접수 결과를 그대로 반환한다.
 		return requestLoadPort.findByIdempotencyKey(command.idempotencyKey())
 			.map(this::toResult)

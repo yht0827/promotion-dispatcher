@@ -6,6 +6,10 @@ spring:
     username: root
     password: password
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 3000
   flyway:
     enabled: true
   jpa:
@@ -18,6 +22,10 @@ spring:
     username: promotion
     password: promotion
     publisher-confirm-type: simple
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 server:
   port: 8081
@@ -37,3 +45,6 @@ promotion:
     enabled: true
     fixed-delay-ms: 1000
     initial-delay-ms: 5000
+  rate-limit:
+    max-requests: 60
+    window-seconds: 60
