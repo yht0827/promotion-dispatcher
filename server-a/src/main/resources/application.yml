@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: server-a
+  datasource:
+    url: jdbc:mysql://localhost:3306/server_a_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 3000
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: promotion
+    password: promotion
+    publisher-confirm-type: simple
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+promotion:
+  rabbitmq:
+    issue-requested:
+      exchange: issue.requested.exchange
+      routing-key: issue.requested
+  outbox-relay:
+    enabled: true
+    fixed-delay-ms: 1000
+    initial-delay-ms: 5000
+  rate-limit:
+    max-requests: 60
+    window-seconds: 60

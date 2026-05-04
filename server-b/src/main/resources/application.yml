@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: server-b
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: promotion
+    password: promotion
+    publisher-confirm-type: simple
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 50
+        concurrency: 2
+        max-concurrency: 8
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+promotion:
+  rabbitmq:
+    issue-requested:
+      exchange: issue.requested.exchange
+      queue: issue.requested.queue
+      routing-key: issue.requested
+      retry-exchange: issue.requested.retry.exchange
+      retry-queue: issue.requested.retry.wait.queue
+      retry-routing-key: issue.requested.retry
+      retry-delay-millis: 5000
+      max-retry-count: 3
+      dead-letter-exchange: issue.requested.dlx
+      dead-letter-queue: issue.requested.dlq
+      dead-letter-routing-key: issue.requested.dlq
+    issue-processed:
+      exchange: issue.processed.exchange
+      routing-key: issue.processed
+  redis:
+    coupon-stock:
+      result-ttl-seconds: 86400
+      promotion-ttl-seconds: 604800
