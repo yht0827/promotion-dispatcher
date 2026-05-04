@@ -21,20 +21,10 @@ jobs:
           MYSQL_ROOT_PASSWORD: password
         ports:
           - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
       redis:
         image: redis:7.4
         ports:
           - 6379:6379
-        options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
       rabbitmq:
         image: rabbitmq:3.13-management
         env:
@@ -43,11 +33,6 @@ jobs:
         ports:
           - 5672:5672
           - 15672:15672
-        options: >-
-          --health-cmd="rabbitmq-diagnostics -q ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
 
     steps:
       - name: Checkout
@@ -61,6 +46,29 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Wait for infrastructure
+        run: |
+          wait_for() {
+            name="$1"
+            shift
+
+            for i in $(seq 1 60); do
+              if "$@"; then
+                echo "${name} is ready"
+                return 0
+              fi
+
+              sleep 2
+            done
+
+            echo "${name} is not ready"
+            return 1
+          }
+
+          wait_for mysql docker exec "${{ job.services.mysql.id }}" mysqladmin ping -uroot -ppassword --silent
+          wait_for redis docker exec "${{ job.services.redis.id }}" redis-cli ping
+          wait_for rabbitmq docker exec "${{ job.services.rabbitmq.id }}" rabbitmq-diagnostics -q ping
 
       - name: Prepare MySQL databases
         run: |
