@@ -3,6 +3,8 @@ package com.promotion.serverb.application.port.in;
 import java.time.Instant;
 import java.util.Objects;
 
+import com.promotion.common.event.IssueRequestedEvent;
+
 public record ProcessCouponIssueCommand(
 	String requestId,
 	Long promotionId,
@@ -17,6 +19,16 @@ public record ProcessCouponIssueCommand(
 		requirePositive(userId, "사용자 ID");
 		requireText(idempotencyKey, "멱등성 키");
 		Objects.requireNonNull(requestedAt, "요청 시각");
+	}
+
+	public static ProcessCouponIssueCommand from(IssueRequestedEvent event) {
+		return new ProcessCouponIssueCommand(
+			event.requestId(),
+			event.promotionId(),
+			event.userId(),
+			event.idempotencyKey(),
+			event.requestedAt()
+		);
 	}
 
 	private static void requireText(String value, String fieldName) {

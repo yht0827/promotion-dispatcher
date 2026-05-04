@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.promotion.common.type.IssueResult;
 import com.promotion.serverb.application.port.in.ProcessCouponIssueCommand;
+import com.promotion.serverb.application.port.in.ProcessCouponIssueResult;
 import com.promotion.serverb.application.port.in.ProcessCouponIssueUseCase;
 
 class IssueRequestedListenerTest {
@@ -44,8 +46,14 @@ class IssueRequestedListenerTest {
 		private ProcessCouponIssueCommand command;
 
 		@Override
-		public void process(ProcessCouponIssueCommand command) {
+		public ProcessCouponIssueResult process(ProcessCouponIssueCommand command) {
 			this.command = command;
+			return new ProcessCouponIssueResult(
+				command.requestId(),
+				command.promotionId(),
+				command.userId(),
+				IssueResult.SUCCESS
+			);
 		}
 	}
 }

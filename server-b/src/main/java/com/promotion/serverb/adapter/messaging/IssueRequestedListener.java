@@ -21,13 +21,7 @@ class IssueRequestedListener {
 	@RabbitListener(queues = "${promotion.rabbitmq.issue-requested.queue}")
 	void handle(String payload) {
 		IssueRequestedEvent event = toEvent(payload);
-		processCouponIssueUseCase.process(new ProcessCouponIssueCommand(
-			event.requestId(),
-			event.promotionId(),
-			event.userId(),
-			event.idempotencyKey(),
-			event.requestedAt()
-		));
+		processCouponIssueUseCase.process(ProcessCouponIssueCommand.from(event));
 	}
 
 	private IssueRequestedEvent toEvent(String payload) {
