@@ -14,6 +14,7 @@ import lombok.Builder;
 import lombok.NoArgsConstructor;
 
 import com.promotion.servera.domain.model.OutboxEvent;
+import com.promotion.servera.domain.model.OutboxEventStatus;
 
 @Entity
 @Table(name = "outbox_event")
@@ -72,5 +73,31 @@ class OutboxEventEntity {
 			.createdAt(event.createdAt())
 			.updatedAt(event.updatedAt())
 			.build();
+	}
+
+	OutboxEvent toDomain() {
+		return new OutboxEvent(
+			eventId,
+			aggregateType,
+			aggregateId,
+			eventType,
+			payloadJson,
+			OutboxEventStatus.valueOf(status),
+			createdAt,
+			updatedAt
+		);
+	}
+
+	void markPublished(LocalDateTime publishedAt) {
+		this.status = OutboxEventStatus.PUBLISHED.name();
+		this.updatedAt = publishedAt;
+		this.publishedAt = publishedAt;
+	}
+
+	void markFailed(String failureMessage, LocalDateTime failedAt) {
+		this.status = OutboxEventStatus.FAILED.name();
+		this.retryCount++;
+		this.lastError = failureMessage;
+		this.updatedAt = failedAt;
 	}
 }

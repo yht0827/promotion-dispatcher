@@ -13,7 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
+@SpringBootTest(properties = "promotion.outbox-relay.enabled=false")
 @AutoConfigureMockMvc
 class CouponIssueControllerTest {
 

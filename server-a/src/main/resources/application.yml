@@ -12,6 +12,11 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: promotion
+    password: promotion
 
 server:
   port: 8081
@@ -21,3 +26,13 @@ management:
     web:
       exposure:
         include: health
+
+promotion:
+  rabbitmq:
+    issue-requested:
+      exchange: issue.requested.exchange
+      routing-key: issue.requested
+  outbox-relay:
+    enabled: true
+    fixed-delay-ms: 1000
+    initial-delay-ms: 5000
