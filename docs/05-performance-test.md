@@ -141,7 +141,7 @@ curl -u promotion:promotion \
 - 현재 구현은 측정 전 stock bucket/shard를 넣지 않고, 단일 Lua script 기준 한계를 먼저 확인한다.
 - 병목이 확인되면 stock bucket/shard, Redis Cluster, 사전 분산 재고를 확장안으로 검토한다.
 
-## 실측 결과
+## 실측 결과 - 로컬 개발 머신 baseline
 
 실행 기준:
 
@@ -153,8 +153,7 @@ curl -u promotion:promotion \
 
 주의:
 
-- 아래 수치는 현재 로컬 기준 baseline이다.
-- 과제 제출용 공식 수치는 1vCPU, 2GB 제한 환경에서 한 번 더 측정해야 한다.
+- 아래 수치는 제한 없는 로컬 기준 baseline이다.
 - 1,000 VU 테스트는 HTTP error 없이 모두 접수됐지만, 현재 threshold인 p95 500ms는 초과했다.
 
 ### Warm-up
@@ -232,24 +231,110 @@ Server A 단일 인스턴스 실측 TPS: 800
 필요 Server A 인스턴스 수: ceil(10,000 / 800) = 13
 ```
 
-최종 README에는 실제 측정값으로 계산식을 갱신한다.
+최종 README에는 아래 1vCPU, 2GB 제한 환경의 실측값을 기준으로 계산한다.
 
-## 100,000명 동시 접속 산정 예시
+## 실측 결과 - 1vCPU, 2GB 제한 Server A
 
-현재 로컬 baseline에서 1,000 VU 평균 처리량은 약 863 TPS다.
-정확한 제출 수치는 1vCPU, 2GB 제한 환경에서 다시 측정한 TPS로 계산해야 한다.
+실행 기준:
 
-동시에 100,000명이 쿠폰 발급 버튼을 누르는 상황을 단순화하면 다음처럼 계산할 수 있다.
+- 실행 일시: 2026-05-04
+- Server A 실행 방식: Docker container
+- Server A 제한: `--cpus=1`, `--memory=2g`
+- JVM 옵션: `-XX:ActiveProcessorCount=1 -Xms512m -Xmx1536m`
+- MySQL, Redis, RabbitMQ: Docker Compose
+- Server B/C: 로컬 `bootRun`
+- 측정 범위: Server A 요청 접수 성능과 비동기 최종 정합성 확인
+
+제한 확인:
+
+```text
+NanoCPUs=1000000000
+Memory=2147483648
+```
+
+### Warm-up
+
+```text
+VU   요청 수  TPS   avg(ms)  p95(ms)  p99(ms)  HTTP error  최종 결과    비고
+10   10       10.7  913.5    914.6    914.7    0%          SUCCESS 10   공식 수치에서 제외
+```
+
+### 100 VU 반복 측정
+
+```text
+회차  요청 수  TPS   avg(ms)  p95(ms)  p99(ms)  HTTP error  최종 결과     backlog
+1     100      62.6  965.0    1577.4   1578.6   0%          SUCCESS 100   0
+2     100      84.9  739.4    1160.8   1162.8   0%          SUCCESS 100   0
+3     100      94.1  565.6    866.0    1040.4   0%          SUCCESS 100   0
+평균  100      80.5  756.7    1201.4   1260.6   0%          SUCCESS 100   0
+```
+
+해석:
+
+- 100 VU에서는 모든 요청이 `202 ACCEPTED`로 접수됐다.
+- 최종 결과는 모두 `SUCCESS`였다.
+- RabbitMQ backlog는 안정화 후 0이었다.
+- 안정 처리량은 약 80 TPS로 본다.
+- p95/p99는 현재 threshold를 초과하므로 latency 기준으로는 개선 여지가 크다.
+
+### 1,000 VU 반복 측정
+
+```text
+회차  요청 수  TPS    avg(ms)  p95(ms)  p99(ms)  HTTP error  HTTP 202  최종 결과                   backlog
+1     1000     132.0  4266.4   7236.3   7426.1   5.2%        948       SUCCESS 100 / SOLD_OUT 848   0
+2     1000     82.2   3151.9   5516.8   5716.9   1.3%        987       SUCCESS 100 / SOLD_OUT 887   0
+3     1000     203.9  2892.7   4633.0   4759.0   0.3%        997       SUCCESS 100 / SOLD_OUT 897   0
+평균  1000     139.4  3437.0   5795.4   5967.3   2.27%       977.3     일부 요청 실패               0
+```
+
+해석:
+
+- 1,000 VU에서는 Server A가 과부하 상태가 된다.
+- 일부 요청은 `202`, `409`, `429`가 아닌 예외 응답으로 떨어졌다.
+- Server A 로그 기준 원인은 Hikari connection pool 고갈이다.
+
+```text
+HikariPool-1 - Connection is not available, request timed out after 3000ms
+total=20, active=20, idle=0, waiting=180
+```
+
+- 최종 저장된 요청에 대해서는 정합성이 유지됐다.
+- 다만 실패한 요청은 request log와 outbox에 기록되지 못했으므로, 1,000 VU를 안정 처리량으로 보면 안 된다.
+- 1vCPU, 2GB 기준 공식 안정 TPS는 100 VU 반복 측정의 평균인 약 80 TPS로 잡는다.
+
+### 제한 환경 병목 해석
+
+현재 Server A는 요청 접수 시 MySQL request log와 outbox를 같은 transaction에 저장한다.
+이 설계는 유실 방어에는 유리하지만, 단일 노드 자원이 작을 때 DB connection pool이 먼저 포화된다.
+
+안정성을 높이려면 다음 보강을 검토한다.
+
+- Server A global concurrency limit 추가
+- DB connection을 얻기 전에 초과 요청을 `429` 또는 `503`으로 제어
+- Tomcat thread 수와 Hikari pool 크기 균형 조정
+- Hikari connection timeout 조정
+- Server A 수평 확장
+- 요청 접수 DB write 성능 개선
+- queue backlog와 DB pool metric 기반 autoscaling
+
+## 1vCPU, 2GB 기준 100,000명 동시 접속 산정
+
+제한 환경의 안정 처리량을 보수적으로 80 TPS로 잡는다.
+100,000명이 동시에 요청하는 경우 필요한 인스턴스 수는 목표 처리 시간에 따라 달라진다.
 
 ```text
 목표 처리 시간 1초:
 목표 TPS = 100,000
-필요 Server A 인스턴스 = ceil(100,000 / 863) = 116대
+필요 Server A 인스턴스 = ceil(100,000 / 80) = 1,250대
 
 목표 처리 시간 10초:
 목표 TPS = 10,000
-필요 Server A 인스턴스 = ceil(10,000 / 863) = 12대
+필요 Server A 인스턴스 = ceil(10,000 / 80) = 125대
+
+목표 처리 시간 60초:
+목표 TPS = 1,667
+필요 Server A 인스턴스 = ceil(1,667 / 80) = 21대
 ```
 
-운영에서는 Server A만 늘리는 것으로 끝나지 않는다.
-Server A 인스턴스 수에 맞춰 MySQL connection 수, RabbitMQ 처리량, Server B/C consumer 수, Redis hot key 처리량도 함께 검증해야 한다.
+위 계산은 Server A 요청 접수 기준이다.
+운영에서는 MySQL 쓰기 처리량, RabbitMQ publish 처리량, Server B/C consumer 처리량, Redis hot key 처리량을 함께 맞춰야 한다.
