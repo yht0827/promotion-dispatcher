@@ -14,6 +14,41 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      rabbitmq:
+        image: rabbitmq:3.13-management
+        env:
+          RABBITMQ_DEFAULT_USER: promotion
+          RABBITMQ_DEFAULT_PASS: promotion
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,6 +61,17 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare MySQL databases
+        run: |
+          docker exec "${{ job.services.mysql.id }}" mysql -uroot -ppassword -e "
+          CREATE DATABASE IF NOT EXISTS server_a_db
+            DEFAULT CHARACTER SET utf8mb4
+            DEFAULT COLLATE utf8mb4_0900_ai_ci;
+          CREATE DATABASE IF NOT EXISTS server_c_db
+            DEFAULT CHARACTER SET utf8mb4
+            DEFAULT COLLATE utf8mb4_0900_ai_ci;
+          "
 
       - name: Run tests
         run: ./gradlew test --no-daemon
