@@ -33,12 +33,14 @@ class IssueCouponService implements IssueCouponUseCase {
 	@Override
 	@Transactional
 	public IssueCouponResult issue(IssueCouponCommand command) {
+		// 같은 Idempotency-Key 요청이면 기존 접수 결과를 그대로 반환한다.
 		return requestLoadPort.findByIdempotencyKey(command.idempotencyKey())
 			.map(this::toResult)
 			.orElseGet(() -> issueNewRequest(command));
 	}
 
 	private IssueCouponResult issueNewRequest(IssueCouponCommand command) {
+		// 같은 프로모션을 이미 신청한 사용자인지 먼저 확인한다.
 		requestLoadPort.findByPromotionIdAndUserId(command.promotionId(), command.userId())
 			.ifPresent(existing -> {
 				throw new DuplicateCouponIssueRequestException(command.promotionId(), command.userId());
@@ -56,8 +58,10 @@ class IssueCouponService implements IssueCouponUseCase {
 			command.payloadJson(),
 			now
 		);
+		// 요청 접수 이력을 저장한다.
 		requestSavePort.save(request);
 
+		// 같은 트랜잭션에서 outbox 이벤트까지 저장해 메시지 유실을 막는다.
 		OutboxEvent outboxEvent = outboxEventFactory.create(request, requestedAt);
 		outboxEventSavePort.save(outboxEvent);
 

@@ -19,8 +19,8 @@ class RabbitTopologyConfig {
 	@Bean
 	Queue issueRequestedQueue(IssueRequestedRabbitProperties properties) {
 		return QueueBuilder.durable(properties.queue())
-			.deadLetterExchange(properties.deadLetterExchange())
-			.deadLetterRoutingKey(properties.deadLetterRoutingKey())
+			.deadLetterExchange(properties.retryExchange())
+			.deadLetterRoutingKey(properties.retryRoutingKey())
 			.build();
 	}
 
@@ -33,6 +33,31 @@ class RabbitTopologyConfig {
 		return BindingBuilder.bind(issueRequestedQueue)
 			.to(issueRequestedExchange)
 			.with(properties.routingKey());
+	}
+
+	@Bean
+	DirectExchange issueRequestedRetryExchange(IssueRequestedRabbitProperties properties) {
+		return new DirectExchange(properties.retryExchange(), true, false);
+	}
+
+	@Bean
+	Queue issueRequestedRetryQueue(IssueRequestedRabbitProperties properties) {
+		return QueueBuilder.durable(properties.retryQueue())
+			.ttl(properties.retryDelayMillis())
+			.deadLetterExchange(properties.exchange())
+			.deadLetterRoutingKey(properties.routingKey())
+			.build();
+	}
+
+	@Bean
+	Binding issueRequestedRetryBinding(
+		Queue issueRequestedRetryQueue,
+		DirectExchange issueRequestedRetryExchange,
+		IssueRequestedRabbitProperties properties
+	) {
+		return BindingBuilder.bind(issueRequestedRetryQueue)
+			.to(issueRequestedRetryExchange)
+			.with(properties.retryRoutingKey());
 	}
 
 	@Bean

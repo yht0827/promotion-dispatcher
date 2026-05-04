@@ -2,21 +2,27 @@ package com.promotion.serverb.application.service;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
+import com.promotion.common.event.IssueProcessedEvent;
 import com.promotion.common.type.IssueResult;
 import com.promotion.serverb.application.port.in.ProcessCouponIssueCommand;
 import com.promotion.serverb.application.port.in.ProcessCouponIssueResult;
 import com.promotion.serverb.application.port.out.CouponStockPort;
+import com.promotion.serverb.application.port.out.IssueProcessedPublisherPort;
 
 class ProcessCouponIssueServiceTest {
 
 	@Test
 	void processIssuesCouponThroughCouponStockPort() {
 		FakeCouponStockPort couponStockPort = new FakeCouponStockPort(IssueResult.SUCCESS);
-		ProcessCouponIssueService service = new ProcessCouponIssueService(couponStockPort);
+		FakeIssueProcessedPublisherPort publisherPort = new FakeIssueProcessedPublisherPort();
+		Clock clock = Clock.fixed(Instant.parse("2026-05-04T03:00:01Z"), ZoneOffset.UTC);
+		ProcessCouponIssueService service = new ProcessCouponIssueService(couponStockPort, publisherPort, clock);
 		ProcessCouponIssueCommand command = new ProcessCouponIssueCommand(
 			"request-1",
 			1L,
@@ -31,6 +37,14 @@ class ProcessCouponIssueServiceTest {
 		assertThat(couponStockPort.requestId).isEqualTo("request-1");
 		assertThat(couponStockPort.promotionId).isEqualTo(1L);
 		assertThat(couponStockPort.userId).isEqualTo(100L);
+		assertThat(publisherPort.event).isEqualTo(new IssueProcessedEvent(
+			"request-1",
+			1L,
+			100L,
+			IssueResult.SUCCESS,
+			null,
+			Instant.parse("2026-05-04T03:00:01Z")
+		));
 	}
 
 	private static class FakeCouponStockPort implements CouponStockPort {
@@ -50,6 +64,16 @@ class ProcessCouponIssueServiceTest {
 			this.promotionId = promotionId;
 			this.userId = userId;
 			return result;
+		}
+	}
+
+	private static class FakeIssueProcessedPublisherPort implements IssueProcessedPublisherPort {
+
+		private IssueProcessedEvent event;
+
+		@Override
+		public void publish(IssueProcessedEvent event) {
+			this.event = event;
 		}
 	}
 }

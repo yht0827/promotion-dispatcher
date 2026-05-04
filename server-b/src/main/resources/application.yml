@@ -6,6 +6,9 @@ spring:
     port: 5672
     username: promotion
     password: promotion
+    listener:
+      simple:
+        acknowledge-mode: manual
   data:
     redis:
       host: localhost
@@ -26,6 +29,11 @@ promotion:
       exchange: issue.requested.exchange
       queue: issue.requested.queue
       routing-key: issue.requested
+      retry-exchange: issue.requested.retry.exchange
+      retry-queue: issue.requested.retry.wait.queue
+      retry-routing-key: issue.requested.retry
+      retry-delay-millis: 5000
+      max-retry-count: 3
       dead-letter-exchange: issue.requested.dlx
       dead-letter-queue: issue.requested.dlq
       dead-letter-routing-key: issue.requested.dlq
