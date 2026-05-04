@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-class RabbitTopologyConfig {
+class IssueRequestedTopologyConfig {
 
 	@Bean
 	DirectExchange issueRequestedExchange(IssueRequestedRabbitProperties properties) {
@@ -79,10 +79,5 @@ class RabbitTopologyConfig {
 		return BindingBuilder.bind(issueRequestedDeadLetterQueue)
 			.to(issueRequestedDeadLetterExchange)
 			.with(properties.deadLetterRoutingKey());
-	}
-
-	@Bean
-	DirectExchange issueProcessedExchange(IssueProcessedRabbitProperties properties) {
-		return new DirectExchange(properties.exchange(), true, false);
 	}
 }

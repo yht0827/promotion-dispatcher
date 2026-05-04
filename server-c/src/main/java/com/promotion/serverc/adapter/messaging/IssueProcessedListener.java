@@ -1,4 +1,4 @@
-package com.promotion.serverb.adapter.messaging;
+package com.promotion.serverc.adapter.messaging;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -9,27 +9,27 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.promotion.common.event.IssueRequestedEvent;
-import com.promotion.serverb.application.port.in.ProcessCouponIssueCommand;
-import com.promotion.serverb.application.port.in.ProcessCouponIssueUseCase;
+import com.promotion.common.event.IssueProcessedEvent;
+import com.promotion.serverc.application.port.in.SaveCouponIssueResultCommand;
+import com.promotion.serverc.application.port.in.SaveCouponIssueResultUseCase;
 import com.rabbitmq.client.Channel;
 
 import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-class IssueRequestedListener {
+class IssueProcessedListener {
 
 	private final ObjectMapper objectMapper;
-	private final ProcessCouponIssueUseCase processCouponIssueUseCase;
-	private final IssueRequestedRetryHandler retryHandler;
+	private final SaveCouponIssueResultUseCase saveCouponIssueResultUseCase;
+	private final IssueProcessedRetryHandler retryHandler;
 
-	@RabbitListener(queues = "${promotion.rabbitmq.issue-requested.queue}")
+	@RabbitListener(queues = "${promotion.rabbitmq.issue-processed.queue}")
 	void handle(Message message, Channel channel) throws IOException {
 		long deliveryTag = message.getMessageProperties().getDeliveryTag();
 		try {
-			IssueRequestedEvent event = toEvent(payload(message));
-			processCouponIssueUseCase.process(ProcessCouponIssueCommand.from(event));
+			IssueProcessedEvent event = toEvent(payload(message));
+			saveCouponIssueResultUseCase.save(SaveCouponIssueResultCommand.from(event));
 			channel.basicAck(deliveryTag, false);
 		} catch (RuntimeException exception) {
 			retryHandler.handleFailure(message, channel, deliveryTag);
@@ -40,11 +40,11 @@ class IssueRequestedListener {
 		return new String(message.getBody(), StandardCharsets.UTF_8);
 	}
 
-	private IssueRequestedEvent toEvent(String payload) {
+	private IssueProcessedEvent toEvent(String payload) {
 		try {
-			return objectMapper.readValue(payload, IssueRequestedEvent.class);
+			return objectMapper.readValue(payload, IssueProcessedEvent.class);
 		} catch (JsonProcessingException exception) {
-			throw new IllegalStateException("issue.requested 메시지를 읽을 수 없습니다", exception);
+			throw new IllegalStateException("issue.processed 메시지를 읽을 수 없습니다", exception);
 		}
 	}
 }

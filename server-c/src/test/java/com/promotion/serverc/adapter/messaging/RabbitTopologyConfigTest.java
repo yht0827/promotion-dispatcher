@@ -21,15 +21,25 @@ class RabbitTopologyConfigTest {
 		DirectExchange exchange = context.getBean("issueProcessedExchange", DirectExchange.class);
 		Queue queue = context.getBean("issueProcessedQueue", Queue.class);
 		Binding binding = context.getBean("issueProcessedBinding", Binding.class);
+		DirectExchange retryExchange = context.getBean("issueProcessedRetryExchange", DirectExchange.class);
+		Queue retryQueue = context.getBean("issueProcessedRetryQueue", Queue.class);
+		Binding retryBinding = context.getBean("issueProcessedRetryBinding", Binding.class);
 		DirectExchange deadLetterExchange = context.getBean("issueProcessedDeadLetterExchange", DirectExchange.class);
 		Queue deadLetterQueue = context.getBean("issueProcessedDeadLetterQueue", Queue.class);
 
 		assertThat(exchange.getName()).isEqualTo("issue.processed.exchange");
 		assertThat(queue.getName()).isEqualTo("issue.processed.queue");
 		assertThat(queue.getArguments())
-			.containsEntry("x-dead-letter-exchange", "issue.processed.dlx")
-			.containsEntry("x-dead-letter-routing-key", "issue.processed.dlq");
+			.containsEntry("x-dead-letter-exchange", "issue.processed.retry.exchange")
+			.containsEntry("x-dead-letter-routing-key", "issue.processed.retry");
 		assertThat(binding.getRoutingKey()).isEqualTo("issue.processed");
+		assertThat(retryExchange.getName()).isEqualTo("issue.processed.retry.exchange");
+		assertThat(retryQueue.getName()).isEqualTo("issue.processed.retry.wait.queue");
+		assertThat(retryQueue.getArguments())
+			.containsEntry("x-message-ttl", 5000)
+			.containsEntry("x-dead-letter-exchange", "issue.processed.exchange")
+			.containsEntry("x-dead-letter-routing-key", "issue.processed");
+		assertThat(retryBinding.getRoutingKey()).isEqualTo("issue.processed.retry");
 		assertThat(deadLetterExchange.getName()).isEqualTo("issue.processed.dlx");
 		assertThat(deadLetterQueue.getName()).isEqualTo("issue.processed.dlq");
 	}

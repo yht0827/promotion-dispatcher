@@ -11,7 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 
 @SpringBootTest
-class RabbitTopologyConfigTest {
+class IssueRequestedTopologyConfigTest {
 
 	@Autowired
 	private ApplicationContext context;
@@ -42,13 +42,5 @@ class RabbitTopologyConfigTest {
 		assertThat(retryBinding.getRoutingKey()).isEqualTo("issue.requested.retry");
 		assertThat(deadLetterExchange.getName()).isEqualTo("issue.requested.dlx");
 		assertThat(deadLetterQueue.getName()).isEqualTo("issue.requested.dlq");
-	}
-
-	@Test
-	void declaresIssueProcessedExchange() {
-		DirectExchange exchange = context.getBean("issueProcessedExchange", DirectExchange.class);
-
-		assertThat(exchange.getName()).isEqualTo("issue.processed.exchange");
-		assertThat(exchange.isDurable()).isTrue();
 	}
 }
