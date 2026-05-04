@@ -207,6 +207,10 @@ Rate limit script:
 따라서 `promotion:{promotionId}:stock`, `promotion:{promotionId}:issued-users`는 hot key가 될 수 있다.
 현재 구현은 Lua script로 정합성을 보장하지만 단일 key 처리량 한계는 남는다.
 
+현재 데이터 모델은 단일 stock key와 단일 issued-users set을 사용한다.
+stock bucket/shard는 측정 전 구현하지 않는다.
+분산 재고를 도입하면 bucket별 소진, 전체 품절 판단, 중복 발급 방어 범위가 함께 복잡해지기 때문이다.
+
 확장안:
 
 - `promotion:{promotionId}:stock:{bucket}` 형태로 재고 bucket을 나누어 분산 차감
@@ -264,7 +268,7 @@ CREATE DATABASE IF NOT EXISTS server_c_db
 - `coupon_issue_result`는 최종 결과 원장이며 append-only에 가깝게 운영한다.
 - `promotion_id + user_id` unique constraint는 Server C의 최종 중복 발급 방어선이다.
 - Redis 재고와 MySQL 최종 결과 수가 일시적으로 다를 수 있으므로 운영 문서에 보정 절차를 남긴다.
-- 트래픽 증가 시 `promotion:{promotionId}:stock:{bucket}` 형태의 stock bucket/shard 확장을 고려한다.
+- k6 측정에서 Redis hot key 병목이 확인되면 `promotion:{promotionId}:stock:{bucket}` 형태의 stock bucket/shard 확장을 고려한다.
 
 ## DB Lock 최소화
 

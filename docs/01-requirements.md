@@ -264,6 +264,10 @@ Server A와 Server C는 짧은 transaction과 unique constraint로 중복을 방
 특정 프로모션에 요청이 몰리면 `promotion:{promotionId}:stock`, `promotion:{promotionId}:issued-users`가 hot key가 된다.
 현재 구현은 Lua script로 정합성을 확보하지만, 단일 key에 집중되는 처리량 한계는 남는다.
 
+현재 과제 구현에서는 stock bucket/shard를 바로 구현하지 않는다.
+측정 전 분산 재고를 도입하면 bucket 선택, 부분 소진 시 재시도, 전체 품절 판단, 사용자 중복 set 분산까지 설계 복잡도가 커진다.
+따라서 단일 Redis Lua script로 정합성과 DB lock 회피를 우선하고, k6 측정 결과 hot key 병목이 확인되면 아래 확장안을 적용한다.
+
 확장안:
 
 - stock bucket/shard: 프로모션 재고를 여러 bucket key로 나누어 요청을 분산
@@ -298,7 +302,7 @@ Server A와 Server C는 짧은 transaction과 unique constraint로 중복을 방
 | 장애 대응 | retry, DLQ, idempotent consumer 적용 |
 | Backpressure | rate limit, prefetch, consumer concurrency 제한 |
 | 테스트 | 단위 테스트, adapter 테스트, end-to-end smoke test, k6 부하 테스트 |
-| 운영 확장 | B outbox, stock bucket/shard, observability stack은 확장안으로 문서화 |
+| 운영 확장 | B outbox, stock bucket/shard, Redis Cluster, observability stack은 측정 후 확장안으로 문서화 |
 
 ### Connection Pool 기준
 
