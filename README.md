@@ -6,13 +6,21 @@
 
 클라이언트는 Server A에 쿠폰 발급 요청을 보내고, Server A는 요청 원장과 Outbox를 저장한 뒤 즉시 `202 ACCEPTED`를 반환합니다. 이후 Server B가 Redis Lua script로 재고를 원자적으로 차감하고, Server C가 최종 발급 결과를 MySQL에 저장합니다.
 
-```text
-Client
-  -> Server A: 요청 접수, 멱등성 검증, Rate Limit, Outbox 저장
-  -> RabbitMQ: issue.requested
-  -> Server B: Redis Lua script 재고 차감, 처리 결과 발행
-  -> RabbitMQ: issue.processed
-  -> Server C: 최종 발급 결과 저장
+## 시스템 아키텍처
+
+```mermaid
+flowchart LR
+    Client["Client"] --> ServerA["Server A\nHTTP API / Rate Limit / Idempotency"]
+    ServerA --> MysqlA[("MySQL\nserver_a_db\nrequest log + outbox")]
+    ServerA --> RequestedMQ["RabbitMQ\nissue.requested"]
+    RequestedMQ --> ServerB["Server B\nRedis Lua stock processor"]
+    ServerB --> Redis[("Redis\nstock / issued-users / result cache")]
+    ServerB --> ProcessedMQ["RabbitMQ\nissue.processed"]
+    ProcessedMQ --> ServerC["Server C\nfinal result saver"]
+    ServerC --> MysqlC[("MySQL\nserver_c_db\ncoupon_issue_result")]
+
+    RequestedMQ -. retry / DLQ .-> RequestedDLQ["issue.requested.retry / DLQ"]
+    ProcessedMQ -. retry / DLQ .-> ProcessedDLQ["issue.processed.retry / DLQ"]
 ```
 
 ## 기술 스택
@@ -244,7 +252,7 @@ ceil(1,667 / 80) = 21대
 
 ## 제출 관점 요약
 
-- Source Code: 이 저장소
+- Source Code: [https://github.com/yht0827/promotion-dispatcher](https://github.com/yht0827/promotion-dispatcher)
 - Design Document: `README.md`, `docs/01` ~ `docs/06`
 - Data Flow: `docs/02-sequence-diagrams.md`
 - 동시성 및 정합성 해결 전략: `docs/01-requirements.md`, `docs/04-erd.md`, `docs/06-failure-scenarios.md`
