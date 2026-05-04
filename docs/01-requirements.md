@@ -89,7 +89,7 @@ Client
 
 | 기능 | METHOD | URI | 주요 헤더 |
 |---|---|---|---|
-| 쿠폰 발급 요청 | POST | `/api/promotions/{promotionId}/coupons/issue` | `Idempotency-Key`, `X-User-Id` |
+| 쿠폰 발급 요청 | POST | `/api/v1/promotions/{promotionId}/coupons/issue` | `Idempotency-Key`, `X-User-Id` |
 | Health Check | GET | `/actuator/health` | - |
 
 외부 HTTP API는 Server A만 제공한다. Server B와 Server C는 RabbitMQ consumer로 동작한다.
@@ -100,7 +100,7 @@ Client
 
 | METHOD | URI | 설명 |
 |---|---|---|
-| POST | `/api/promotions/{promotionId}/coupons/issue` | 선착순 프로모션 쿠폰 발급 요청을 접수한다 |
+| POST | `/api/v1/promotions/{promotionId}/coupons/issue` | 선착순 프로모션 쿠폰 발급 요청을 접수한다 |
 
 ### 기능 요구사항
 
@@ -116,7 +116,7 @@ Client
 ### Request
 
 ```http
-POST /api/promotions/1/coupons/issue
+POST /api/v1/promotions/1/coupons/issue
 Idempotency-Key: issue-user-1001-001
 X-User-Id: 1001
 Content-Type: application/json

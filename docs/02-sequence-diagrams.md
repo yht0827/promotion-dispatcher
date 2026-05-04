@@ -26,7 +26,7 @@ sequenceDiagram
     participant OP as OutboxEventPort
     participant DB as MySQL server_a_db
 
-    C->>API: POST /api/promotions/{id}/coupons/issue
+    C->>API: POST /api/v1/promotions/{id}/coupons/issue
     API->>UC: issue(command)
     UC->>RL: check(userId)
 
